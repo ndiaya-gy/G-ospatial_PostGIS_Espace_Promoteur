@@ -1,0 +1,25 @@
+version: "3.8"
+
+# Base de données locale PostGIS pour développer/tester le module
+# Géospatial & Promoteur en isolation, sans dépendre du docker-compose
+# racine (propriété de Ndeye, section 3 du document d'équipe).
+#
+# Usage : docker compose -f docker-compose.postgis.yml up -d
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: foncier-postgis-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: foncier
+      POSTGRES_PASSWORD: foncier_dev_pwd
+      POSTGRES_DB: foncier_geo_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./docs/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgis_data:
