@@ -23,7 +23,7 @@ const Parcelle = sequelize.define(
       type: DataTypes.GEOMETRY("POLYGON", 4326),
       allowNull: false,
     },
-    surface_m2: {
+    superficie_declaree: {
       type: DataTypes.FLOAT,
       allowNull: true,
       comment: "Calculée via ST_Area, remplie par geospatialService",
@@ -34,11 +34,12 @@ const Parcelle = sequelize.define(
     },
     statut: {
       type: DataTypes.ENUM(
-        "brouillon",
-        "soumise",
-        "validee_cadastre",
-        "certifiee_notaire",
-        "rejetee"
+        "BROUILLON",
+        "SOUMISE",
+        "VALIDE_CADASTRE",
+        "REJETE_CADASTRE",
+        "CERTIFIEE",
+        "REJETE_NOTAIRE"
       ),
       defaultValue: "brouillon",
     },
