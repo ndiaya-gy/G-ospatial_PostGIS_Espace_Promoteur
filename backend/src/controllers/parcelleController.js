@@ -21,7 +21,7 @@ async function creerParcelle(req, res) {
       localisation,
       surface_m2,
       promoteur_id,
-      statut: "brouillon",
+      statut: "BROUILLON",
     });
 
     return res.status(201).json({ success: true, data: parcelle });
@@ -56,7 +56,7 @@ async function soumettreParcelle(req, res) {
       });
     }
 
-    parcelle.statut = "soumise";
+    parcelle.statut = "SOUMISE";
     await parcelle.save();
 
     return res.status(200).json({ success: true, data: parcelle });

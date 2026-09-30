@@ -41,7 +41,7 @@ const Parcelle = sequelize.define(
         "CERTIFIEE",
         "REJETE_NOTAIRE"
       ),
-      defaultValue: "brouillon",
+      defaultValue: "BROUILLON",
     },
     promoteur_id: {
       type: DataTypes.UUID,

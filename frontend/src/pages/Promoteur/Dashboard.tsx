@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import axiosClient from "../../api/axiosClient"; // composant partagé de Carla
+import axiosClient from "../../api/axiosClient";
 
 interface Parcelle {
   id: string;
   reference: string;
   statut: string;
-  surface_m2: number;
+  superficie_declaree: number;
   localisation: string;
 }
 
 const LABEL_STATUT: Record<string, string> = {
-  brouillon: "Brouillon",
-  soumise: "Soumise",
-  validee_cadastre: "Validée (Cadastre)",
-  certifiee_notaire: "Certifiée (Notaire)",
-  rejetee: "Rejetée",
+  BROUILLON: "Brouillon",
+  SOUMISE: "Soumise",
+  VALIDE_CADASTRE: "Validée (Cadastre)",
+  REJETE_CADASTRE: "Rejetée (Cadastre)",
+  CERTIFIEE: "Certifiée (Notaire)",
+  REJETE_NOTAIRE: "Rejetée (Notaire)",
 };
 
 export default function Dashboard() {
@@ -64,7 +65,7 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="text-sm text-gray-600">
-              {p.localisation} — {p.surface_m2?.toFixed(0)} m²
+              {p.localisation} — {p.superficie_declaree?.toFixed(0)} m²
             </div>
           </Link>
         ))}

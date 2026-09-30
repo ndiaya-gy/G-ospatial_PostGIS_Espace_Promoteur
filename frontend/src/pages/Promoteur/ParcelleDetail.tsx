@@ -7,7 +7,7 @@ interface ParcelleDetailData {
   id: string;
   reference: string;
   statut: string;
-  surface_m2: number;
+  superficie_declaree: number;
   localisation: string;
   geometrie: GeoPolygon;
 }
@@ -31,13 +31,13 @@ export default function ParcelleDetail() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-1">{parcelle.reference}</h1>
       <p className="text-gray-600 mb-4">
-        {parcelle.localisation} — {parcelle.surface_m2?.toFixed(0)} m² —{" "}
+        {parcelle.localisation} — {parcelle.superficie_declaree?.toFixed(0)} m² —{" "}
         <span className="font-medium">{parcelle.statut}</span>
       </p>
 
       <ParcelleMap mode="lecture-seule" geometrie={parcelle.geometrie} />
 
-      {parcelle.statut === "brouillon" && (
+      {parcelle.statut === "BROUILLON" && (
         <Link
           to={`/promoteur/parcelles/${parcelle.id}/soumettre`}
           className="inline-block mt-4 px-4 py-2 rounded bg-blue-600 text-white"

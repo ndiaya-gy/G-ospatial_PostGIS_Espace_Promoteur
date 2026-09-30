@@ -30,18 +30,18 @@ app.get("/", (req, res) => {
 async function demarrer() {
   try {
     await sequelize.authenticate();
-    console.log("✅ Connexion à PostGIS réussie");
+    console.log(" Connexion à PostGIS réussie");
 
     // sync({ alter: true }) crée/ajuste les tables automatiquement.
     // Pratique en dev, à ne JAMAIS utiliser en production.
-    await sequelize.sync({ alter: true });
-    console.log("✅ Tables synchronisées (parcelles, documents)");
+    await sequelize.sync({ force: true });
+    console.log(" Tables synchronisées (parcelles, documents)");
 
     app.listen(PORT, () => {
-      console.log(`🚀 Serveur de test lancé sur http://localhost:${PORT}`);
+      console.log(` Serveur de test lancé sur http://localhost:${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Erreur au démarrage :", err.message);
+    console.error(" Erreur au démarrage :", err.message);
   }
 }
 
