@@ -3,27 +3,33 @@ const router = express.Router();
 
 const parcelleController = require("../controllers/parcelleController");
 const { handleParcelleUpload } = require("../middleware/upload");
+const auth = require("../middleware/auth");
+const checkRole = require("../middleware/roles");
 
-// NOTE : le middleware d'auth (auth.js, roles.js) est la propriété de
-// Carla. Une fois disponible dans le repo, protège ces routes avec
-// verifyToken + requireRole('PROMOTEUR').
+// Toutes les routes exigent un utilisateur connecté (JWT).
+router.use(auth);
 
-router.post("/", parcelleController.creerParcelle);
-router.get("/", parcelleController.listerParcelles);
-router.get("/:id", parcelleController.obtenirParcelle);
+// --- CRUD parcelle (Promoteur) ---
+router.post("/", checkRole("PROMOTEUR"), parcelleController.creerParcelle);
+router.get("/", checkRole("PROMOTEUR"), parcelleController.listerParcelles);
+router.put("/:id", checkRole("PROMOTEUR"), parcelleController.modifierParcelle);
+router.delete("/:id", checkRole("PROMOTEUR"), parcelleController.supprimerParcelle);
+
+// --- Documents et soumission (cahier section 6) ---
 router.post(
-  "/:id/soumettre",
+  "/:id/documents",
+  checkRole("PROMOTEUR"),
   handleParcelleUpload,
-  parcelleController.soumettreParcelle
+  parcelleController.ajouterDocument
 );
+router.put("/:id/soumettre", checkRole("PROMOTEUR"), parcelleController.soumettreParcelle);
+
+// --- Lecture : accessible aux trois rôles ---
+router.get(
+  "/:id/controle-geo",
+  checkRole("PROMOTEUR", "CADASTRE", "NOTAIRE"),
+  parcelleController.controleGeo
+);
+router.get("/:id", checkRole("PROMOTEUR", "CADASTRE", "NOTAIRE"), parcelleController.obtenirParcelle);
 
 module.exports = router;
-
-/*
- * Rappel (section 3 du doc d'équipe) : dans backend/src/routes/index.js
- * (propriété de Carla), ajouter UNE seule ligne :
- *
- *   router.use('/parcelles', require('./parcelleRoutes'));
- *
- * Ne pas mettre de logique dans index.js.
- */

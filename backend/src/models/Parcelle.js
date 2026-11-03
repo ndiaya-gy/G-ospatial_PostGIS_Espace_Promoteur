@@ -1,8 +1,16 @@
 const { DataTypes } = require("sequelize");
-
-// NOTE : adapte l'import ci-dessous au fichier de connexion de Carla
-// (backend/src/config/db.js) une fois qu'il est disponible dans le repo.
 const sequelize = require("../config/db");
+
+// Statuts du cahier des charges (section 7, table parcelles)
+const STATUTS = [
+  "BROUILLON",
+  "SOUMISE",
+  "VALIDE_CADASTRE",
+  "REJETE_CADASTRE",
+  "VALIDE_NOTAIRE",
+  "REJETE_NOTAIRE",
+  "CERTIFIEE",
+];
 
 const Parcelle = sequelize.define(
   "Parcelle",
@@ -13,46 +21,56 @@ const Parcelle = sequelize.define(
       primaryKey: true,
     },
     reference: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: false,
       unique: true,
-      comment: "Référence cadastrale ou identifiant interne de la parcelle",
     },
-    // Champ géométrique : polygone en SRID 4326 (coordonnées GPS WGS84)
+    type: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: { isIn: [["URBAIN", "RURAL"]] },
+    },
+    superficie_declaree: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+    },
+    // Polygone en projection WGS84 (GeoJSON)
     geometrie: {
       type: DataTypes.GEOMETRY("POLYGON", 4326),
       allowNull: false,
     },
-    superficie_declaree: {
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      comment: "Calculée via ST_Area, remplie par geospatialService",
+    statut: {
+      type: DataTypes.STRING(30),
+      allowNull: false,
+      defaultValue: "BROUILLON",
+      validate: { isIn: [STATUTS] },
     },
+    nicad: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    // Hors script du cahier, mais affichée par les maquettes
     localisation: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    statut: {
-      type: DataTypes.ENUM(
-        "BROUILLON",
-        "SOUMISE",
-        "VALIDE_CADASTRE",
-        "REJETE_CADASTRE",
-        "CERTIFIEE",
-        "REJETE_NOTAIRE"
-      ),
-      defaultValue: "BROUILLON",
-    },
-    promoteur_id: {
+    createur_id: {
       type: DataTypes.UUID,
       allowNull: false,
-      comment: "FK vers User.js (modèle de Carla)",
+      references: { model: "users", key: "id" },
     },
   },
   {
     tableName: "parcelles",
     timestamps: true,
+    underscored: true, // created_at / updated_at, comme le cahier
+    indexes: [
+      // Index spatial du cahier pour accélérer la détection de chevauchement
+      { name: "idx_parcelles_geometrie", using: "GIST", fields: ["geometrie"] },
+    ],
   }
 );
+
+Parcelle.STATUTS = STATUTS;
 
 module.exports = Parcelle;

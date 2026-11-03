@@ -22,8 +22,8 @@ const Document = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // Empreinte SHA-256 du fichier — permet de prouver l'intégrité du
-    // document au moment de la certification par la blockchain (Ndeye).
+    // Empreinte SHA-256 du fichier : prouve l'intégrité du document
+    // au moment de la certification par la blockchain.
     hash_sha256: {
       type: DataTypes.STRING(64),
       allowNull: false,
@@ -40,6 +40,7 @@ const Document = sequelize.define(
   {
     tableName: "documents",
     timestamps: true,
+    underscored: true,
   }
 );
 

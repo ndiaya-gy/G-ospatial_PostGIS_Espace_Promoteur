@@ -1,94 +1,94 @@
 const { QueryTypes } = require("sequelize");
 const sequelize = require("../config/db");
-const Parcelle = require("../models/Parcelle");
 
-/**
- * Vérifie que la géométrie d'une parcelle est topologiquement valide
- * (pas d'auto-intersection, anneau bien fermé, etc.) avant sauvegarde.
- */
-async function estGeometrieValide(geoJsonPolygon) {
-  const [result] = await sequelize.query(
-    `SELECT ST_IsValid(ST_GeomFromGeoJSON(:geojson)) AS valide,
-            ST_IsValidReason(ST_GeomFromGeoJSON(:geojson)) AS raison`,
-    {
-      replacements: { geojson: JSON.stringify(geoJsonPolygon) },
-      type: QueryTypes.SELECT,
-    }
-  );
-  return { valide: result.valide, raison: result.raison };
+// Deux parcelles qui se touchent seulement sur une frontière ne se chevauchent pas :
+// on exige une surface commune supérieure à ce seuil (en m²).
+const SEUIL_CHEVAUCHEMENT_M2 = 0.1;
+
+const GEOM = "ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326)";
+
+function erreur(message, code, extra = {}) {
+  const e = new Error(message);
+  e.code = code;
+  Object.assign(e, extra);
+  return e;
 }
 
-/**
- * Calcule la surface d'une parcelle en m².
- * ST_Area sur une géométrie géographique (::geography) donne un
- * résultat en mètres carrés même avec des coordonnées GPS (SRID 4326).
- */
-async function calculerSurface(geoJsonPolygon) {
-  const [result] = await sequelize.query(
-    `SELECT ST_Area(ST_GeomFromGeoJSON(:geojson)::geography) AS surface_m2`,
-    {
-      replacements: { geojson: JSON.stringify(geoJsonPolygon) },
-      type: QueryTypes.SELECT,
+function verifierPolygone(geometrie) {
+  let g = geometrie;
+  if (typeof g === "string") {
+    try {
+      g = JSON.parse(g);
+    } catch {
+      g = null;
     }
-  );
-  return result.surface_m2;
+  }
+  if (!g || g.type !== "Polygon" || !Array.isArray(g.coordinates)) {
+    throw erreur("La géométrie doit être un GeoJSON de type Polygon.", "GEOMETRIE_INVALIDE");
+  }
+  return JSON.stringify({ type: g.type, coordinates: g.coordinates });
 }
 
-/**
- * Retourne la liste des parcelles existantes qui chevauchent
- * (ST_Intersects) la géométrie donnée. Utile pour bloquer la
- * soumission d'une parcelle qui empiète sur une parcelle déjà déposée.
- */
-async function trouverParcellesChevauchantes(geoJsonPolygon, excludeId = null) {
-  const whereExclude = excludeId ? "AND id != :excludeId" : "";
+// ST_IsValid (cahier section 4)
+async function estGeometrieValide(geojson) {
+  const rows = await sequelize.query(`SELECT ST_IsValid(${GEOM}) AS valide`, {
+    replacements: { geojson },
+    type: QueryTypes.SELECT,
+  });
+  return rows[0].valide === true;
+}
 
-  const parcelles = await sequelize.query(
+// ST_Area en m² (calcul sur l'ellipsoïde via le type geography)
+async function calculerSurface(geojson) {
+  const rows = await sequelize.query(`SELECT ST_Area(${GEOM}::geography) AS surface`, {
+    replacements: { geojson },
+    type: QueryTypes.SELECT,
+  });
+  return Number(rows[0].surface);
+}
+
+// ST_Intersects avec les parcelles STATUT = 'CERTIFIEE' uniquement (cahier section 4).
+// excludeId : on exclut la parcelle elle-même lors d'une modification ou d'un contrôle.
+async function trouverParcellesChevauchantes(geojson, excludeId) {
+  const exclusion = excludeId ? "AND id <> CAST(:excludeId AS uuid)" : "";
+  return sequelize.query(
     `SELECT id, reference
-     FROM parcelles
-     WHERE ST_Intersects(geometrie, ST_GeomFromGeoJSON(:geojson))
-     ${whereExclude}`,
+       FROM parcelles
+      WHERE statut = 'CERTIFIEE'
+        AND geometrie IS NOT NULL
+        AND ST_Intersects(geometrie, ${GEOM})
+        AND ST_Area(ST_Intersection(geometrie, ${GEOM})::geography) > :seuil
+        ${exclusion}`,
     {
-      replacements: {
-        geojson: JSON.stringify(geoJsonPolygon),
-        excludeId,
-      },
+      replacements: { geojson, seuil: SEUIL_CHEVAUCHEMENT_M2, excludeId: excludeId || null },
       type: QueryTypes.SELECT,
     }
   );
-
-  return parcelles;
 }
 
-/**
- * Pipeline complet de validation appelé avant la création/soumission
- * d'une parcelle : validité géométrique -> chevauchement -> surface.
- */
-async function validerEtEnrichirParcelle(geoJsonPolygon, excludeId = null) {
-  const { valide, raison } = await estGeometrieValide(geoJsonPolygon);
-  if (!valide) {
-    const erreur = new Error(`Géométrie invalide : ${raison}`);
-    erreur.code = "GEOMETRIE_INVALIDE";
-    throw erreur;
+async function validerEtEnrichirParcelle(geometrie, excludeId) {
+  const geojson = verifierPolygone(geometrie);
+
+  if (!(await estGeometrieValide(geojson))) {
+    throw erreur("Géométrie invalide (polygone auto-intersecté ou non fermé).", "GEOMETRIE_INVALIDE");
   }
 
-  const chevauchements = await trouverParcellesChevauchantes(
-    geoJsonPolygon,
-    excludeId
-  );
-  if (chevauchements.length > 0) {
-    const erreur = new Error(
-      `Cette géométrie chevauche ${chevauchements.length} parcelle(s) existante(s)`
+  const surface_m2 = await calculerSurface(geojson);
+
+  const parcelles = await trouverParcellesChevauchantes(geojson, excludeId);
+  if (parcelles.length > 0) {
+    throw erreur(
+      `Chevauchement avec une parcelle certifiée : ${parcelles.map((p) => p.reference).join(", ")}`,
+      "CHEVAUCHEMENT_DETECTE",
+      { parcelles }
     );
-    erreur.code = "CHEVAUCHEMENT_DETECTE";
-    erreur.parcelles = chevauchements;
-    throw erreur;
   }
 
-  const surface_m2 = await calculerSurface(geoJsonPolygon);
   return { surface_m2 };
 }
 
 module.exports = {
+  verifierPolygone,
   estGeometrieValide,
   calculerSurface,
   trouverParcellesChevauchantes,
